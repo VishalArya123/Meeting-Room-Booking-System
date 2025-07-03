@@ -1,30 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
-import { Clock, Trash2, Calendar } from 'lucide-react';
+import { Clock, Trash2, Calendar, Building, FileText, LogIn, AlertCircle } from 'lucide-react';
 
 const BookingHistory = () => {
-  const { user, isAuthenticated, getAccessTokenSilently } = useAuth0();
+  const { user, isAuthenticated } = useAuth0();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchBookings = async () => {
-      if (!isAuthenticated) return;
+      if (!isAuthenticated || !user?.sub) return;
       
       setLoading(true);
       setError(null);
       
       try {
         console.log("Fetching bookings for user:", user.sub);
-        const token = await getAccessTokenSilently();
-        console.log("Token:", token);
         
-        const response = await fetch(`http://localhost:5001/bookings?user_id=${user.sub}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        const response = await fetch(`http://localhost:5001/bookings?user_id=${encodeURIComponent(user.sub)}`);
         
         console.log("Response status:", response.status);
         
@@ -32,7 +26,7 @@ const BookingHistory = () => {
         
         const data = await response.json();
         console.log("Received data:", data);
-        setBookings(data);
+        setBookings(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('Error fetching bookings:', err);
         setError(err.message);
@@ -46,12 +40,8 @@ const BookingHistory = () => {
 
   const handleCancel = async (bookingId) => {
     try {
-      const token = await getAccessTokenSilently();
       const response = await fetch(`http://localhost:5001/bookings/${bookingId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        method: 'DELETE'
       });
       
       if (!response.ok) throw new Error('Failed to cancel booking');
@@ -79,7 +69,7 @@ const BookingHistory = () => {
     <div className="text-center p-6 bg-white rounded-lg shadow-md">
       <p className="text-gray-600 flex items-center justify-center space-x-2">
         <Clock className="w-5 h-5 text-blue-600 animate-spin" />
-        <span>Loading...</span>
+        <span>Loading your bookings...</span>
       </p>
     </div>
   );
@@ -99,8 +89,12 @@ const BookingHistory = () => {
         <Calendar className="w-8 h-8 text-blue-600" />
         <h2 className="text-2xl font-semibold text-gray-800">Your Booking History</h2>
       </div>
+      
       {bookings.length === 0 ? (
-        <p className="text-gray-600 bg-white p-4 rounded-lg shadow-md">No bookings found.</p>
+        <div className="bg-white p-6 rounded-lg shadow-md text-center">
+          <p className="text-gray-600 mb-4">You don't have any bookings yet.</p>
+          <p className="text-sm text-gray-500">Book a room to see your reservations here.</p>
+        </div>
       ) : (
         <div className="space-y-4">
           {bookings.map(booking => (

@@ -11,20 +11,37 @@ ini_set('display_errors', 1);
 
 function ensureUserExists($conn, $auth0_id, $email, $name) {
     try {
-        $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+        // First try to find by auth0_id
+        $stmt = $conn->prepare("SELECT id FROM users WHERE auth0_id = ?");
         if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
         
-        $stmt->bind_param("s", $email);
+        $stmt->bind_param("s", $auth0_id);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($result->num_rows === 0) {
-            $stmt = $conn->prepare("INSERT INTO users (email, name, auth0_id) VALUES (?, ?, ?)");
-            if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
-            
-            $stmt->bind_param("sss", $email, $name, $auth0_id);
+            // If not found by auth0_id, try by email
+            $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->bind_param("s", $email);
             $stmt->execute();
-            return $conn->insert_id;
+            $result = $stmt->get_result();
+
+            if ($result->num_rows === 0) {
+                // User doesn't exist, create new
+                $stmt = $conn->prepare("INSERT INTO users (email, name, auth0_id) VALUES (?, ?, ?)");
+                if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
+                
+                $stmt->bind_param("sss", $email, $name, $auth0_id);
+                $stmt->execute();
+                return $conn->insert_id;
+            } else {
+                // User exists by email but not auth0_id - update with auth0_id
+                $user = $result->fetch_assoc();
+                $update = $conn->prepare("UPDATE users SET auth0_id = ? WHERE id = ?");
+                $update->bind_param("si", $auth0_id, $user['id']);
+                $update->execute();
+                return $user['id'];
+            }
         } else {
             $user = $result->fetch_assoc();
             return $user['id'];
@@ -41,8 +58,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $user_id = isset($_GET['user_id']) ? $_GET['user_id'] : null;
 
         if ($user_id) {
+            // First find the internal user ID based on auth0_id
+            $stmt = $conn->prepare("SELECT id FROM users WHERE auth0_id = ?");
+            $stmt->bind_param("s", $user_id);
+            $stmt->execute();
+            $user_result = $stmt->get_result();
+            
+            if ($user_result->num_rows === 0) {
+                echo json_encode([]);
+                exit;
+            }
+            
+            $user = $user_result->fetch_assoc();
+            $internal_user_id = $user['id'];
+            
+            // Now get bookings for this user
             $stmt = $conn->prepare("SELECT b.*, r.name as room_name FROM bookings b JOIN rooms r ON b.room_id = r.id WHERE b.user_id = ?");
-            $stmt->bind_param("i", $user_id);
+            $stmt->bind_param("i", $internal_user_id);
         } else {
             $stmt = $conn->prepare("SELECT b.*, r.name as room_name FROM bookings b JOIN rooms r ON b.room_id = r.id");
         }
@@ -62,7 +94,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 }
 
-// POST Create Booking
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $json = file_get_contents('php://input');
@@ -127,12 +158,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(500);
         echo json_encode([
             'error' => $e->getMessage(),
-            'trace' => $e->getTrace() // ⚠️ Remove in production
+            'trace' => $e->getTrace()
         ]);
     }
 }
 
-// DELETE Booking
 if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     try {
         if (!isset($_GET['id'])) {
