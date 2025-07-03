@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Auth0Provider } from '@auth0/auth0-react';
 import Navbar from './components/Navbar';
+import Rooms from './components/Rooms';
 import Home from './pages/Home';
 import History from './pages/History';
 import './index.css';
@@ -19,6 +20,7 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/history" element={<History />} />
+            <Route path="/rooms" element={<Rooms />} />
           </Routes>
         </div>
       </Router>
