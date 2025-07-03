@@ -7,6 +7,8 @@ const localizer = momentLocalizer(moment);
 
 const CalendarView = ({ bookings, onSelectSlot, onSelectEvent }) => {
   const [events, setEvents] = useState([]);
+  const [view, setView] = useState('week');
+  const [date, setDate] = useState(new Date());
 
   useEffect(() => {
     const formattedEvents = bookings.map(booking => ({
@@ -17,6 +19,14 @@ const CalendarView = ({ bookings, onSelectSlot, onSelectEvent }) => {
     }));
     setEvents(formattedEvents);
   }, [bookings]);
+
+  const handleNavigate = (newDate) => {
+    setDate(newDate);
+  };
+
+  const handleView = (newView) => {
+    setView(newView);
+  };
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md bg-cover bg-center">
@@ -30,6 +40,11 @@ const CalendarView = ({ bookings, onSelectSlot, onSelectEvent }) => {
         onSelectEvent={onSelectEvent}
         selectable
         className="bg-gray-50 bg-opacity-80 backdrop-blur-sm rounded-lg"
+        views={['month', 'week', 'day', 'agenda']}
+        view={view}
+        onView={handleView}
+        date={date}
+        onNavigate={handleNavigate}
       />
     </div>
   );
