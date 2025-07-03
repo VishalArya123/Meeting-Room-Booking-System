@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { Building, FileText, Calendar, AlertCircle,CheckCircle } from 'lucide-react';
+import { Building, FileText, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
+import emailjs from 'emailjs-com';
+
+const SERVICE_ID = 'service_j8qk11k';
+const TEMPLATE_ID = 'template_15tp6pg';
+const PUBLIC_KEY = 'ooidKKUD6G_EZGLiB';
 
 const BookingForm = ({ rooms, onSubmit }) => {
   const { user, isAuthenticated } = useAuth0();
@@ -16,29 +21,29 @@ const BookingForm = ({ rooms, onSubmit }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    
+
     if (!isAuthenticated) {
       setError('Please log in to book a room');
       return;
     }
-  
+
     if (!selectedRoom || !startTime || !endTime) {
       setError('Please fill in all fields');
       return;
     }
-  
+
     if (startTime >= endTime) {
       setError('End time must be after start time');
       return;
     }
-  
+
     setIsSubmitting(true);
-  
+
     try {
       const formatForMySQL = (date) => {
         return date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
       };
-  
+
       const bookingData = {
         room_id: selectedRoom,
         user_id: user.sub,
@@ -48,24 +53,38 @@ const BookingForm = ({ rooms, onSubmit }) => {
         end_time: formatForMySQL(endTime),
         purpose: purpose
       };
-  
+
       await onSubmit(bookingData);
-      
+
+      // Send email via EmailJS
+      await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+        user_name: user.name,
+        room_name: rooms.find((r) => r.id === selectedRoom)?.name || 'N/A',
+        start_time: formatForMySQL(startTime),
+        end_time: formatForMySQL(endTime),
+        purpose: purpose,
+        user_email: user.email,
+      }, PUBLIC_KEY);
+
+      // Reset form
       setSelectedRoom('');
       setPurpose('');
       setStartTime(null);
       setEndTime(null);
+
     } catch (err) {
+      console.error(err);
       setError(err.message || 'Failed to create booking');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+
   const filterPassedTime = (time) => {
     const currentDate = new Date();
     const selectedDate = new Date(time);
-    
+
     return currentDate.getTime() < selectedDate.getTime();
   };
 
@@ -117,7 +136,7 @@ const BookingForm = ({ rooms, onSubmit }) => {
             ))}
           </select>
         </div>
-        
+
         <div>
           <label className="block text-gray-700 mb-2 flex items-center space-x-2">
             <FileText className="w-5 h-5 text-blue-600" />
@@ -154,7 +173,7 @@ const BookingForm = ({ rooms, onSubmit }) => {
               disabled={isSubmitting}
             />
           </div>
-          
+
           <div>
             <label className="block text-gray-700 mb-2 flex items-center space-x-2">
               <Calendar className="w-5 h-5 text-blue-600" />
